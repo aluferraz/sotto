@@ -1,0 +1,43 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 builds the Windows installer on a Windows machine and attaches it
+# to a GitHub release of that name.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            windows/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - run: npm ci
+        working-directory: windows
+      - run: npm run build
+        working-directory: windows
+      - run: npx electron-builder --win --x64 --publish never
+        working-directory: windows
+      - name: Attach the installer to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem windows/release/*.exe, windows/release/*.zip | ForEach-Object { $_.FullName }
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --title "Sotto $env:GITHUB_REF_NAME" --generate-notes }
+          gh release upload $env:GITHUB_REF_NAME $files --clobber

@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - name: Leave the developer test page out of the site
+        run: rm -f web/dist/harness.html
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/dist
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            windows/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - run: npm ci
+        working-directory: windows
+      - run: npm run build
+        working-directory: windows
+      - name: Make a spoken test clip with the Windows voice
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Speech
+          $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $voice.SetOutputToWaveFile("$env:RUNNER_TEMP\clip.wav", $format)
+          $voice.Speak("So I was thinking we could meet at six at the coffee shop on Main Street, the one next to the library.")
+          $voice.Dispose()
+          Get-Item "$env:RUNNER_TEMP\clip.wav" | Select-Object Name, Length
+      - name: Self-test on a real Windows desktop
+        shell: pwsh
+        working-directory: windows
+        run: |
+          npx electron . --smoke-test=smoke-out "--smoke-clip=$env:RUNNER_TEMP\clip.wav" --smoke-download
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-self-test
+          path: windows/smoke-out
+      - name: Build the installer
+        working-directory: windows
+        run: npx electron-builder --win --x64 --publish never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-app
+          path: |
+            windows/release/*.exe
+            windows/release/*.zip
+
+  android:
+    name: Android keyboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+      - run: ./gradlew :core:test :app:assembleDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  mac:
+    name: Mac app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift build
+        working-directory: mac
+      - run: swift test
+        working-directory: mac
+
+  pages:
+    name: Publish the browser version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: web
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,57 @@
+{
+  "name": "sotto-windows",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sotto for Windows: hold a key, speak, and the text is typed where your cursor is.",
+  "main": "dist/main.js",
+  "dependencies": {
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.10",
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "productName": "Sotto",
+  "author": "Sotto contributors",
+  "scripts": {
+    "build:web": "npm --prefix ../web run build",
+    "build": "tsc --noEmit && node build.mjs",
+    "start": "npm run build && electron .",
+    "smoke": "electron . --smoke-test=smoke-out",
+    "dist": "npm run build && electron-builder --win --x64",
+    "typecheck": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "dev.sotto.windows",
+    "productName": "Sotto",
+    "files": [
+      "dist/**",
+      "web/**",
+      "assets/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ],
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Sotto"
+    },
+    "artifactName": "Sotto-${version}-windows-${arch}.${ext}"
+  }
+}

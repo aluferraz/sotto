@@ -1,0 +1,57 @@
+# macOS
+.DS_Store
+
+# Swift (mac/)
+.build/
+mac/dist/
+*.xcodeproj/
+xcuserdata/
+
+# Python engine (mac/engine)
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Gradle and Android (android/)
+.gradle/
+.kotlin/
+build/
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+captures/
+.idea/
+*.iml
+
+# Node (web/, windows/)
+node_modules/
+web/dist/
+windows/dist/
+windows/web/
+windows/release/
+windows/smoke-out/
+*.tsbuildinfo
+
+# Model files, test recordings and anything else heavy or personal
+*.onnx
+*.onnx_data
+*.litertlm
+*.gguf
+*.safetensors
+testdata/*.wav
+testdata/*.aiff
+
+# Secrets and local settings
+.env
+.env.*
+*.pem
+*.p12
+*.keychain-db
+signing.password
+secrets.json
+settings.json
+history.json
+.claude/
