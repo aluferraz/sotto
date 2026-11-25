@@ -184,9 +184,12 @@ emulator. The Windows ones were taken on a Windows machine during the automated 
 The text rules (fillers, tone, snippets, the guard, the key's state machine) exist three times,
 in Swift, Kotlin and TypeScript, with the same tests in each.
 
-## The model's licence
+## Licence
 
-LFM3-Audio-2B is under the [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM3-Audio-2B/blob/main/LICENSE),
-which is not a standard open-source licence and limits commercial use by larger organizations.
-Sotto downloads the model from Hugging Face on first use; read the licence before building a
-business on it.
+Sotto's code is under the [MIT licence](LICENSE.md).
+
+The model is not: LFM3-Audio-2B is under Liquid AI's LFM Open License v1.0, which is not a
+standard open-source licence and limits commercial use by larger organizations. Sotto downloads
+the model from Hugging Face on first use. The full text, and the licences of the libraries the
+apps are built with, are in [THIRD_PARTY_LICENSE.md](THIRD_PARTY_LICENSE.md); read it before
+building a business on it.
