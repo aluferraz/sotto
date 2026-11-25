@@ -114,12 +114,16 @@ app.whenReady().then(async () => {
       await js(`sotto.dictation.key('down')`)
       await sleep(seconds * 1000 + 600)
       const levels = await js('sotto.dictation.levels.value.length')
+      const awakeDuring = await js('sotto.dictation.keepingAwake')
       await js(`sotto.dictation.key('up')`)
       for (let i = 0; i < 120 && (await js('sotto.dictation.phase.value')) !== 'idle'; i++) await sleep(250)
       const text = await js('sotto.pad.value')
       const notice = await js('sotto.dictation.notice.value')
       const entry = await js('JSON.stringify(sotto.history.value[0] ?? null)')
+      const awakeAfter = await js('sotto.dictation.keepingAwake')
       console.log(`level updates while recording: ${levels}`)
+      console.log(`screen kept awake: ${awakeDuring} while recording, ${awakeAfter} afterwards`)
+      if (!awakeDuring || awakeAfter) failed = true
       console.log(`typed: ${JSON.stringify(text)}`)
       console.log(`notice: ${JSON.stringify(notice)}  history: ${entry}`)
 

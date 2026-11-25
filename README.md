@@ -48,6 +48,8 @@ All four share the same habits:
 - **Tone.** Formal, casual or very casual: capitals and final periods, to taste.
 - **Your microphone of choice.** On Mac, Windows and in the browser, pick which one Sotto
   listens to, whatever the system's default is.
+- **It keeps the device awake while it listens.** The screen does not dim or lock in the middle
+  of a long hands-free dictation; once the text is typed, normal sleep returns.
 - **It knows silence.** A recording with no speech in it is dropped before the model can invent
   a sentence for it.
 - **Yours.** Settings and history are files on your device. The one thing it downloads is the model.

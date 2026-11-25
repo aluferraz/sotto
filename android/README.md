@@ -34,6 +34,7 @@ practice, 8 GB of memory or more: the loaded model holds 1 to 3 GB.
 - **✕** discards the recording, or the transcription in progress.
 - **ABC** opens a plain letter keyboard for small corrections; its microphone key starts a
   dictation. **?123** has digits and punctuation. The globe switches to your other keyboard.
+- The screen stays on while Sotto listens and until the text is typed.
 - The strip at the top shows the state, the words as they are recognized, and anything that
   needs attention (tap it to open the app).
 

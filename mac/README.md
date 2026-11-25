@@ -64,6 +64,8 @@ keychain, which Sotto does not touch at all unless the API is selected.
 | Esc | Cancel, while recording or while the text is being prepared |
 
 A pill at the bottom of the screen shows the waveform while it listens and dots while it works.
+For that time the Mac and its display are kept awake, so a long hands-free dictation is not cut
+short by sleep.
 
 Settings (menu bar icon → Settings…):
 

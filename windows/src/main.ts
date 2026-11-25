@@ -1,5 +1,6 @@
 import {
-  app, BrowserWindow, clipboard, ClipboardItem, ipcMain, Menu, nativeImage, protocol, safeStorage, screen, session, Tray,
+  app, BrowserWindow, clipboard, ClipboardItem, ipcMain, Menu, nativeImage, powerSaveBlocker, protocol, safeStorage, screen,
+  session, Tray,
   type NativeImage,
 } from 'electron'
 import { promises as fs, readFileSync, writeFileSync } from 'node:fs'
@@ -120,7 +121,7 @@ async function start(): Promise<void> {
   createPill()
 
   if (smokeDirectory) {
-    const failures = await smokeTest(smokeDirectory, mainWindow!, { keyListener: () => listener, clipboardContents })
+    const failures = await smokeTest(smokeDirectory, mainWindow!, { keyListener: () => listener, clipboardContents, keepingAwake })
     app.exit(failures === 0 ? 0 : 1)
   }
 }
@@ -191,8 +192,28 @@ function createPill(): void {
   void pill.loadURL(`${ORIGIN}/pill.html`)
 }
 
+/** The id of the request that keeps the computer awake, while there is one. */
+let awake: number | undefined
+
+/**
+ * The computer and its screen stay awake while Sotto listens and until the text is typed: in
+ * hands-free mode nobody touches the keyboard for minutes, and a computer that fell asleep
+ * would cut the recording short.
+ */
+function keepAwake(on: boolean): void {
+  if (on && awake === undefined) {
+    awake = powerSaveBlocker.start('prevent-display-sleep')
+  } else if (!on && awake !== undefined) {
+    powerSaveBlocker.stop(awake)
+    awake = undefined
+  }
+}
+
+const keepingAwake = () => awake !== undefined && powerSaveBlocker.isStarted(awake)
+
 function setPhase(next: Phase): void {
   phase = next
+  keepAwake(next !== 'idle')
   tray?.setImage(trayImage(next))
   tray?.setToolTip(next === 'idle' ? 'Sotto' : next === 'processing' ? 'Sotto is writing' : 'Sotto is listening')
   if (!pill) return

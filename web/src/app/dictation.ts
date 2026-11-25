@@ -5,7 +5,7 @@ import { containsSpeech } from '../core/speechGate'
 import { TriggerMachine, type TriggerAction, type TriggerInput } from '../core/trigger'
 import type { Engine } from './engine'
 import { addToHistory, type HistoryEntry } from './persist'
-import { PILL_CHANNEL, type KeyEvent, type Phase, type PillState } from './platform'
+import { desktop, PILL_CHANNEL, type KeyEvent, type Phase, type PillState } from './platform'
 import { Recorder } from './recorder'
 import { Store } from './store'
 
@@ -40,6 +40,8 @@ export class Dictation {
   /** Increases whenever the dictation in flight is abandoned, so its late result is ignored. */
   private run = 0
   private audio: AudioContext | undefined
+  private wakeLock: WakeLockSentinel | undefined
+  private wakeLockWanted = false
 
   constructor(
     private readonly settings: Store<Settings>,
@@ -52,6 +54,7 @@ export class Dictation {
     }
     this.recorder.onLimit = () => this.input('limitReached')
     this.phase.subscribe(() => this.announce())
+    this.phase.subscribe((phase) => void this.keepAwake(phase !== 'idle'))
     this.notice.subscribe(() => this.announce())
   }
 
@@ -173,6 +176,36 @@ export class Dictation {
     clearTimeout(this.noticeTimer)
     this.notice.set(message)
     if (message) this.noticeTimer = setTimeout(() => this.notice.set(''), 4000)
+  }
+
+  /** Whether the screen is being kept on right now. */
+  get keepingAwake(): boolean {
+    return this.wakeLock !== undefined && !this.wakeLock.released
+  }
+
+  /**
+   * In a browser, keeps the screen on while Sotto listens and until the text is in place: a long
+   * dictation involves no typing, and a computer that falls asleep stops the recording. (The
+   * Windows app does the same from its main process, which also works with the window hidden.)
+   */
+  private async keepAwake(on: boolean): Promise<void> {
+    this.wakeLockWanted = on
+    if (desktop || !('wakeLock' in navigator)) return
+    if (!on) {
+      const held = this.wakeLock
+      this.wakeLock = undefined
+      await held?.release().catch(() => undefined)
+      return
+    }
+    if (this.keepingAwake) return
+    try {
+      const lock = await navigator.wakeLock.request('screen')
+      // The dictation may have ended while the browser was answering.
+      if (this.wakeLockWanted) this.wakeLock = lock
+      else await lock.release()
+    } catch {
+      // Refused (a hidden tab, a battery saver): dictation goes on without it.
+    }
   }
 
   private announce(): void {

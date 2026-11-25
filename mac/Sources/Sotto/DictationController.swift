@@ -14,7 +14,14 @@ final class DictationController: ObservableObject {
 
     static let barCount = 22
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet {
+            switch phase {
+            case .recording, .processing: keepAwake(true)
+            case .idle, .notice: keepAwake(false)
+            }
+        }
+    }
     @Published private(set) var levels = [Float](repeating: 0, count: DictationController.barCount)
 
     private let settings: SettingsStore
@@ -41,6 +48,21 @@ final class DictationController: ObservableObject {
             guard let self, case .recording = self.phase else { return }
             self.levels.removeFirst()
             self.levels.append(level)
+        }
+    }
+
+    /// While Sotto listens, and until the text is typed, the Mac and its display stay awake:
+    /// in hands-free mode nobody touches the keyboard for minutes, and a Mac that dozed off
+    /// would cut the recording short.
+    private var awake: NSObjectProtocol?
+
+    private func keepAwake(_ on: Bool) {
+        if on, awake == nil {
+            awake = ProcessInfo.processInfo.beginActivity(
+                options: [.idleDisplaySleepDisabled, .idleSystemSleepDisabled], reason: "Sotto is listening")
+        } else if !on, let token = awake {
+            ProcessInfo.processInfo.endActivity(token)
+            awake = nil
         }
     }
 

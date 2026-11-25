@@ -46,6 +46,8 @@ Settings:
   spoken snippets ("my address").
 - **History**: kept on this computer; can be switched off.
 
+While Sotto listens, and until the text is typed, the computer and its screen are kept awake.
+
 Closing the window leaves Sotto running in the tray. *Start Sotto when I sign in* is in Settings.
 
 ## Using an API instead of the local model

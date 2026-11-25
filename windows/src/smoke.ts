@@ -22,6 +22,7 @@ interface Check { name: string; ok: boolean; detail: string; required: boolean }
 interface Tools {
   keyListener: () => { ok: boolean; message: string }
   clipboardContents: () => Promise<Electron.ClipboardItem[] | undefined>
+  keepingAwake: () => boolean
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -156,6 +157,16 @@ export async function smokeTest(directory: string, window: BrowserWindow, tools:
     const state = tools.keyListener()
     record('the system-wide key listener starts', state.ok, state.message)
     if (osInput) await dictateThroughTheSystem()
+
+    // The page reports its phase to the app, which must hold the computer awake for as long
+    // as Sotto listens or writes, and let go afterwards.
+    const held: boolean[] = [tools.keepingAwake()]
+    for (const phase of ['recording', 'handsFree', 'processing', 'idle']) {
+      await js(`sotto.dictation.phase.set('${phase}')`)
+      await sleep(150)
+      held.push(tools.keepingAwake())
+    }
+    record('the computer is kept awake while listening, and released after', held.join(',') === 'false,true,true,true,false', held.join(','))
 
 
     if (process.argv.includes('--smoke-download')) await onDevice(record, until, gpu.ok)

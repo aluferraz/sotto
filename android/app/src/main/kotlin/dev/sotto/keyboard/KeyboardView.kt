@@ -65,6 +65,9 @@ class KeyboardView(context: Context, private val listener: Listener) : View(cont
             field = value
             phaseSince = SystemClock.uptimeMillis()
             if (value != Phase.RECORDING) levels.fill(0f)
+            // The screen stays on while Sotto listens and until the text is typed: a long
+            // dictation involves no touches, and a phone that locks stops the recording.
+            keepScreenOn = value != Phase.IDLE
             invalidate()
         }
 

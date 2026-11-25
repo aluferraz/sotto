@@ -53,6 +53,8 @@ Things worth knowing:
   own transcript.
 - **Audio longer than 28 s** is cut at the quietest point near each boundary and transcribed piece
   by piece; long transcripts are cleaned in pieces of at most 90 words.
+- **The screen stays on while it listens**, through the browser's Screen Wake Lock, and is
+  released when the text is in place.
 - **The model leaves memory** after 15 minutes without dictation (configurable) and loads again,
   in a few seconds, when the key is next pressed.
 
