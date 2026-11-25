@@ -116,6 +116,7 @@ encryption, the Android Keystore), and that storage is not touched at all unless
 API. The browser version has no API option; it always runs the model itself.
 
 <p><img src="docs/mac-api.png" width="430" alt="API settings in the Mac app" /> <img src="docs/android-api.png" width="250" alt="API settings in the Android app" /></p>
+<p><img src="docs/windows-api.png" width="560" alt="API settings in the Windows app" /></p>
 
 ## How it works
 
@@ -166,6 +167,9 @@ What has been tried, and what has not:
   checksums. Those machines have no graphics card, so **the on-device model has not yet run on a
   Windows graphics card**. It is the same engine in the same Chromium as the browser version;
   reports from real hardware are welcome.
+
+The screenshots on this page show made-up content: the apps' demo mode, test clips, and an
+emulator. The Windows ones were taken on a Windows machine during the automated build.
 
 ## The repository
 
