@@ -4,6 +4,8 @@
  *   electron test/run-app.cjs --shots DIR                 screenshots of every screen, with made-up content
  *   electron test/run-app.cjs --e2e MODEL_DIR CLIP.wav    the whole path: download into the browser's storage,
  *                                                         load, "speak" CLIP through a fake microphone, read the text
+ *   electron test/run-app.cjs --e2e - CLIP.wav --url URL  the same against a published copy of the page, which
+ *                                                         then fetches the model from Hugging Face like any visitor
  *
  * CLIP must be 16-bit PCM. MODEL_DIR holds the five model files (see src/engine/modelStore.ts).
  */
@@ -19,8 +21,9 @@ const shots = args.includes('--shots') ? path.resolve(args[args.indexOf('--shots
 const e2e = args.includes('--e2e')
 const modelDir = e2e ? path.resolve(args[args.indexOf('--e2e') + 1]) : ''
 const clip = e2e ? path.resolve(args[args.indexOf('--e2e') + 2]) : ''
+const site = args.includes('--url') ? args[args.indexOf('--url') + 1] : ''
 
-app.setPath('userData', path.join(os.homedir(), '.cache', 'sotto-web-test-profile'))
+app.setPath('userData', path.join(os.homedir(), '.cache', site ? 'sotto-web-test-profile-site' : 'sotto-web-test-profile'))
 if (e2e) {
   // The audio process may only read the fake microphone's file without its sandbox.
   app.commandLine.appendSwitch('no-sandbox')
@@ -53,7 +56,7 @@ app.whenReady().then(async () => {
     window.webContents.on('console-message', (event) => {
       if (event.level === 'error') console.error(`[page] ${event.message}`)
     })
-    await window.loadURL(`app://sotto/index.html${query}`)
+    await window.loadURL(site && query === '' ? site : `app://sotto/index.html${query}`)
     return window
   }
 
@@ -76,11 +79,10 @@ app.whenReady().then(async () => {
         await take(`dictionary-${theme}`, `?demo&theme=${theme}&tab=dictionary`, '', 900)
         await take(`history-${theme}`, `?demo&theme=${theme}&tab=history`, '', 760)
       }
-      await take('cloud-light', '?demo&theme=light&tab=settings', `sotto.settings.update((s) => ({ ...s, engine: { ...s.engine, kind: 'cloud' } }))`, 1400)
     }
 
     if (e2e) {
-      const window = await open('?model=app://sotto/model/')
+      const window = await open(site ? '' : '?model=app://sotto/model/')
       const js = (code) => window.webContents.executeJavaScript(code, true)
       const state = () => js('JSON.stringify(sotto.engine.state.value)').then(JSON.parse)
       const until = async (what, test, seconds) => {
@@ -92,6 +94,8 @@ app.whenReady().then(async () => {
         }
         throw new Error(`${what}: timed out at ${JSON.stringify(await state())}`)
       }
+      console.log('microphones:', JSON.stringify(await js(`navigator.mediaDevices.enumerateDevices().then((all) => all.filter((d) => d.kind === 'audioinput').map((d) => d.label))`)))
+
       let s = await until('first state', (x) => x.kind !== 'checking', 20)
       console.log('start:', JSON.stringify(s))
       if (s.kind === 'absent') {
@@ -118,7 +122,21 @@ app.whenReady().then(async () => {
       console.log(`level updates while recording: ${levels}`)
       console.log(`typed: ${JSON.stringify(text)}`)
       console.log(`notice: ${JSON.stringify(notice)}  history: ${entry}`)
-      if (!text) failed = true
+
+      // A chosen microphone records; one that is not connected falls back to the default.
+      for (const [what, pick] of [['a chosen microphone', `all.find((d) => d.label === 'Fake Audio Input 2').deviceId`], ['an unplugged microphone', `'no-such-device'`]]) {
+        await js(`navigator.mediaDevices.enumerateDevices().then((all) => sotto.settings.update((s) => ({ ...s, microphoneId: ${pick} })))`)
+        await js(`sotto.dictation.key('down')`)
+        await sleep(1500)
+        const heard = await js('sotto.dictation.levels.value.length')
+        const phase = await js('sotto.dictation.phase.value')
+        await js(`sotto.dictation.key('escape')`)
+        await sleep(300)
+        console.log(`${what}: ${phase}, ${heard} level updates`)
+        if (heard < 10) failed = true
+      }
+      await js(`sotto.settings.update((s) => ({ ...s, microphoneId: '' }))`)
+
       if (shots) fs.writeFileSync(path.join(shots, 'e2e.png'), (await window.webContents.capturePage()).toPNG())
     }
   } catch (error) {

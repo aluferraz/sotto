@@ -113,6 +113,7 @@ final class PostProcessorTests: XCTestCase {
         XCTAssertEqual(s.hotkeys, [.rightOption])   // the single key of older builds
         XCTAssertEqual(s.language, "French")
         XCTAssertEqual(s.cleanup, .smart)
+        XCTAssertEqual(s.microphoneUID, "")   // the system's input
         XCTAssertEqual(s.tone(forBundleID: "com.tinyspeck.slackmacgap"), .casual)
         XCTAssertEqual(s.tone(forBundleID: "com.example.other"), .formal)
     }

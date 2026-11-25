@@ -14,6 +14,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import dev.sotto.core.CleanupLevel
+import dev.sotto.core.Cloud
 import dev.sotto.core.PostProcessor
 import dev.sotto.core.SpeechEngine
 import dev.sotto.core.SpeechGate
@@ -50,7 +51,7 @@ class SottoIme : InputMethodService(), KeyboardView.Listener {
         recorder.onLimit = { finishRecording() }
         scope = MainScope().also { scope ->
             scope.launch {
-                combine(sotto.engine.state, sotto.models.state) { _, _ -> }.collect { showStatus() }
+                combine(sotto.engine.state, sotto.models.state, sotto.settings.data) { _, _, _ -> }.collect { showStatus() }
             }
         }
     }
@@ -125,7 +126,7 @@ class SottoIme : InputMethodService(), KeyboardView.Listener {
         if (view.phase != KeyboardView.Phase.IDLE) return
         val problem = problem()
         view.statusIsProblem = problem != null
-        view.status = problem ?: notice ?: when (val state = sotto.engine.state.value) {
+        view.status = problem ?: notice ?: if (sotto.settings.data.value.useApi) "Ready · using your API" else when (val state = sotto.engine.state.value) {
             EngineHost.State.Loading -> "Loading the speech model…"
             is EngineHost.State.Ready -> "Ready · on this phone's ${state.processor}"
             else -> "Sotto"
@@ -134,11 +135,19 @@ class SottoIme : InputMethodService(), KeyboardView.Listener {
 
     /** Something only the app can fix; tapping the strip opens it. */
     private fun problem(): String? {
-        if (!sotto.models.isReady) return "Tap here to download the speech model"
+        val settings = sotto.settings.data.value
+        if (settings.useApi) {
+            // The key is not needed to tell whether the address and the model are filled in.
+            if (Cloud.problem(settings.cloudConfig("")).isNotEmpty()) return "Tap here to finish setting up the API"
+        } else if (!sotto.models.isReady) {
+            return "Tap here to download the speech model"
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             return "Tap here to allow the microphone"
         }
-        (sotto.engine.state.value as? EngineHost.State.Failed)?.let { return "The model did not load: ${it.message}" }
+        if (!settings.useApi) {
+            (sotto.engine.state.value as? EngineHost.State.Failed)?.let { return "The model did not load: ${it.message}" }
+        }
         return null
     }
 

@@ -1,6 +1,5 @@
 import { render } from 'preact'
 import { HOTKEYS, type Settings } from '../core/settings'
-import { browserHttp } from '../engine/cloud'
 import { describeGpu } from '../engine/lfm'
 import { demoHistory, demoSettings } from './demo'
 import { Dictation } from './dictation'
@@ -29,6 +28,8 @@ export interface App {
   pad: Store<string>
   /** The pad's text area while the home screen is showing. */
   padElement: HTMLTextAreaElement | null
+  /** Fetches the API key from secure storage, once, the first time the API is selected or shown. */
+  loadApiKey: () => Promise<void>
 }
 
 const query = new URLSearchParams(location.search)
@@ -39,7 +40,7 @@ if (theme === 'light' || theme === 'dark') document.documentElement.dataset.them
 
 const settings = demo ? new Store(demoSettings()) : createSettings()
 const history = demo ? new Store(demoHistory()) : createHistory()
-const engine = new Engine(settings, desktop ? (request) => desktop!.http(request) : browserHttp)
+const engine = new Engine(settings, desktop ? (request) => desktop!.http(request) : undefined)
 const app: App = {
   settings,
   history,
@@ -49,7 +50,9 @@ const app: App = {
   tab: new Store<Tab>((query.get('tab') as Tab) || 'home'),
   pad: new Store(demo ? 'Hey Marcus, thanks for sending over the quarterly report. I had a look this morning and the numbers look solid.\n\nCan we meet on Thursday to go over the budget?' : ''),
   padElement: null,
+  loadApiKey: () => (keyLoaded ??= demo || !desktop ? Promise.resolve() : loadApiKey().then((key) => app.apiKey.set(key))),
 }
+let keyLoaded: Promise<void> | undefined
 
 /** The pad is the target when it is showing and, in the Windows app, when it has the keyboard. */
 function padIsTarget(): boolean {
@@ -121,13 +124,14 @@ if (demo) {
   engine.state.set({ kind: 'ready', gpu: '', loadMs: 0 })
   void describeGpu().then((gpu) => engine.state.set({ kind: 'ready', gpu: gpu.name, loadMs: 0 }))
 } else {
-  void loadApiKey().then((key) => {
-    app.apiKey.set(key)
-    engine.setApiKey(key)
-    void engine.refresh().then(() => {
-      // The Windows app lives in the tray: have the model ready before the first key press.
-      if (desktop) void engine.warm()
-    })
+  // Secure storage is left alone unless the API is the engine in use.
+  const ready = engine.usesApi ? app.loadApiKey() : Promise.resolve()
+  void ready.then(() => engine.refresh()).then(() => {
+    // The Windows app lives in the tray: have the model ready before the first key press.
+    if (desktop) void engine.warm()
+  })
+  settings.subscribe((value) => {
+    if (desktop && value.engine.kind === 'cloud') void app.loadApiKey()
   })
 }
 app.apiKey.subscribe((key) => {

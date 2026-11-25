@@ -2,6 +2,7 @@ package dev.sotto.keyboard
 
 import android.content.Context
 import dev.sotto.core.CleanupLevel
+import dev.sotto.core.CloudConfig
 import dev.sotto.core.Replacement
 import dev.sotto.core.Snippet
 import dev.sotto.core.Tone
@@ -28,7 +29,16 @@ data class SettingsData(
     val unloadAfterMinutes: Int = 5,
     /** Open on the large microphone instead of the letters. */
     val openOnVoice: Boolean = true,
+    /** Send recordings to an OpenAI-compatible API instead of using the model on the phone. */
+    val useApi: Boolean = false,
+    /** The API's root. Its key is not kept here but in [ApiKeyVault]. */
+    val apiBaseUrl: String = "https://api.openai.com/v1",
+    val apiModel: String = "gpt-4o-mini-transcribe",
+    /** A chat model for the Smart pass through the API; empty to skip that pass. */
+    val apiCleanupModel: String = "",
 ) {
+    fun cloudConfig(apiKey: String) = CloudConfig(apiBaseUrl, apiKey, apiModel, apiCleanupModel)
+
     /** Terms the cleanup pass should spell exactly: the dictionary plus the written side of every replacement. */
     val spellingHints: List<String>
         get() {
@@ -54,6 +64,10 @@ data class SettingsData(
         put("keepHistory", keepHistory)
         put("unloadAfterMinutes", unloadAfterMinutes)
         put("openOnVoice", openOnVoice)
+        put("useApi", useApi)
+        put("apiBaseUrl", apiBaseUrl)
+        put("apiModel", apiModel)
+        put("apiCleanupModel", apiCleanupModel)
     }
 
     companion object {
@@ -91,6 +105,10 @@ data class SettingsData(
                 keepHistory = json.optBoolean("keepHistory", d.keepHistory),
                 unloadAfterMinutes = json.optInt("unloadAfterMinutes", d.unloadAfterMinutes),
                 openOnVoice = json.optBoolean("openOnVoice", d.openOnVoice),
+                useApi = json.optBoolean("useApi", d.useApi),
+                apiBaseUrl = json.optString("apiBaseUrl", d.apiBaseUrl),
+                apiModel = json.optString("apiModel", d.apiModel),
+                apiCleanupModel = json.optString("apiCleanupModel", d.apiCleanupModel),
             )
         }
     }

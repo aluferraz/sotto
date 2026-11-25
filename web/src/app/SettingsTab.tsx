@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import type { CleanupLevel, Tone } from '../core/postprocess'
 import { HOTKEYS, LANGUAGES, withHotkey, type Settings } from '../core/settings'
 import { MODEL_BYTES } from '../engine/modelStore'
 import type { App } from './main'
 import { saveApiKey } from './persist'
 import { desktop } from './platform'
+import { microphones, type Microphone } from './recorder'
 import { useStore } from './store'
 
 const CLEANUP: ReadonlyArray<readonly [CleanupLevel, string, string]> = [
@@ -26,8 +27,18 @@ export function SettingsTab({ app }: { app: App }) {
   const set = (change: Partial<Settings>) => app.settings.update((s) => ({ ...s, ...change }))
   const setEngine = (change: Partial<Settings['engine']>) => set({ engine: { ...settings.engine, ...change } })
   const [key, setKey] = useState(apiKey)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => setKey(apiKey), [apiKey])
-  const cloud = settings.engine.kind === 'cloud'
+  const cloud = app.engine.usesApi
+  // The stored key is only fetched once the API is being set up or used.
+  useEffect(() => { if (cloud) void app.loadApiKey() }, [cloud])
+  const [inputs, setInputs] = useState<Microphone[]>([])
+  useEffect(() => {
+    const refresh = () => void microphones().then(setInputs)
+    refresh()
+    navigator.mediaDevices?.addEventListener('devicechange', refresh)
+    return () => navigator.mediaDevices?.removeEventListener('devicechange', refresh)
+  }, [])
   const hasModel = engine.kind === 'resting' || engine.kind === 'ready' || engine.kind === 'loading'
     || (engine.kind === 'absent' && engine.bytes > 0)
 
@@ -51,6 +62,21 @@ export function SettingsTab({ app }: { app: App }) {
             Any ticked key starts dictation: hold it to talk, or tap it twice for hands-free.
             {desktop ? ' F13 to F16 suit a keyboard’s macro keys.' : ' Here in the browser they work while this page has the keyboard.'}
           </div>
+        </div>
+        <div class="field">
+          <label for="microphone">Microphone</label>
+          <select id="microphone" value={settings.microphoneId}
+            onChange={(e) => {
+              const id = (e.currentTarget as HTMLSelectElement).value
+              set({ microphoneId: id, microphoneLabel: inputs.find((m) => m.id === id)?.label ?? '' })
+            }}>
+            <option value="">System default</option>
+            {inputs.map((m) => <option value={m.id}>{m.label}</option>)}
+            {settings.microphoneId && !inputs.some((m) => m.id === settings.microphoneId) && (
+              <option value={settings.microphoneId}>{settings.microphoneLabel || 'The chosen microphone'} (not connected; using the default)</option>
+            )}
+          </select>
+          {inputs.length === 0 && <div class="note">Microphones are listed once the microphone has been allowed.</div>}
         </div>
         <div class="field">
           <label for="language">Language</label>
@@ -82,6 +108,7 @@ export function SettingsTab({ app }: { app: App }) {
         </div>
       </section>
 
+      {desktop && (
       <section class="card">
         <h2>Speech engine</h2>
         <label class={`choice ${cloud ? '' : 'on'}`}>
@@ -109,9 +136,14 @@ export function SettingsTab({ app }: { app: App }) {
             <div class="field">
               <label for="apiKey">API key</label>
               <input id="apiKey" type="password" autocomplete="off" placeholder="Leave empty if the server needs none" value={key}
-                onInput={(e) => setKey((e.currentTarget as HTMLInputElement).value)}
-                onBlur={() => { app.apiKey.set(key); void saveApiKey(key) }} />
-              <div class="note">{desktop ? 'Stored encrypted with your Windows account.' : 'Stored in this browser, for this site only.'}</div>
+                onInput={(e) => {
+                  // Saved shortly after the last keystroke, so a key typed and never "left" is not lost.
+                  const value = (e.currentTarget as HTMLInputElement).value
+                  setKey(value)
+                  clearTimeout(saveTimer.current)
+                  saveTimer.current = setTimeout(() => { app.apiKey.set(value); void saveApiKey(value) }, 400)
+                }} />
+              <div class="note">Stored encrypted with your Windows account.</div>
             </div>
             <div class="field">
               <label for="model">Transcription model</label>
@@ -127,6 +159,7 @@ export function SettingsTab({ app }: { app: App }) {
           </div>
         )}
       </section>
+      )}
 
       <section class="card">
         <h2>Behaviour</h2>

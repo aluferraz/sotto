@@ -108,6 +108,13 @@ export async function smokeTest(directory: string, window: BrowserWindow, tools:
     const history = await js<string>(`sotto.history.value[0]?.text ?? ''`)
     record('the dictation is in the history', history === SPOKEN, history)
     writeFileSync(path.join(directory, 'windows-after-dictation.png'), (await window.webContents.capturePage()).toPNG())
+    // The API settings, with OpenAI's public address in place of the stand-in's.
+    await js(`sotto.settings.update((s) => ({ ...s, engine: { kind: 'cloud', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini-transcribe', cleanupModel: 'gpt-4o-mini' } }))`)
+    await js(`sotto.tab.set('settings')`)
+    await sleep(400)
+    await js(`document.querySelector('h2 + .choice').scrollIntoView({ block: 'center' })`)
+    await sleep(300)
+    writeFileSync(path.join(directory, 'windows-api.png'), (await window.webContents.capturePage()).toPNG())
   }
 
   try {
@@ -179,14 +186,23 @@ async function onDevice(
   const started = Date.now()
   void js(`sotto.engine.download()`)
   let last = ''
-  const downloaded = await until(async () => {
-    const state = await js<{ kind: string; bytes?: number; message?: string }>(`sotto.engine.state.value`)
+  await until(async () => {
+    const state = await js<{ kind: string; bytes?: number }>(`sotto.engine.state.value`)
     const line = state.kind === 'downloading' ? `${Math.round((state.bytes ?? 0) / 1e8) / 10} GB` : state.kind
     if (line !== last) console.log(`     download: ${(last = line)}`)
-    if (state.kind === 'failed') throw new Error(`download failed: ${state.message}`)
     return state.kind !== 'downloading' && state.kind !== 'checking' && state.kind !== 'absent'
   }, 1500)
-  record('the speech model downloads and passes its checksums', downloaded, `${Math.round((Date.now() - started) / 1000)} s`)
+  // Asked of the storage itself: how many of the five files are there and passed their checksum.
+  // (On a machine without a graphics card the page then fails to load the model, which is expected.)
+  const verified = await js<number>(`(async () => {
+    const root = await navigator.storage.getDirectory()
+    for await (const [name, handle] of root.entries()) {
+      if (name.startsWith('sotto-model-')) return JSON.parse(await (await (await handle.getFileHandle('verified.json')).getFile()).text()).length
+    }
+    return 0
+  })()`).catch(() => 0)
+  const downloaded = verified === 5
+  record('the speech model downloads and passes its checksums', downloaded, `${verified} of 5 files in ${Math.round((Date.now() - started) / 1000)} s`)
   if (!downloaded || !canRun) {
     if (!canRun) record('the speech model runs on this machine', false, 'no graphics adapter that can run it here', false)
     window.destroy()

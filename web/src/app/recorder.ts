@@ -23,13 +23,26 @@ export class Recorder {
     return this.stream !== undefined
   }
 
-  async start(): Promise<void> {
+  /** True when the last recording wanted a particular microphone and had to use the default one. */
+  usedDefaultInstead = false
+
+  /** `deviceId` picks a microphone (see `microphones()`); empty means the system's default. */
+  async start(deviceId = ''): Promise<void> {
     if (this.stream) return
     this.blocks = []
     this.samples = 0
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
-    })
+    this.usedDefaultInstead = false
+    const audio = { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { ...audio, deviceId: { exact: deviceId } } : audio })
+    } catch (error) {
+      // The chosen microphone is unplugged: dictating with another one beats not dictating.
+      const missing = error instanceof DOMException && (error.name === 'OverconstrainedError' || error.name === 'NotFoundError')
+      if (!deviceId || !missing) throw error
+      this.usedDefaultInstead = true
+      stream = await navigator.mediaDevices.getUserMedia({ audio })
+    }
     this.stream = stream
     try {
       if (!this.context) {
@@ -99,5 +112,19 @@ export async function requestMicrophone(): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+export interface Microphone { id: string; label: string }
+
+/** The connected microphones. Browsers only name them once the microphone has been allowed. */
+export async function microphones(): Promise<Microphone[]> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    return devices
+      .filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d) => ({ id: d.deviceId, label: d.label || 'Microphone' }))
+  } catch {
+    return []
   }
 }

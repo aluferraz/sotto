@@ -26,7 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateIcon(for: .idle)
         NSApp.mainMenu = makeMainMenu()
 
-        engine.start(model: settings.data.model)
+        // With an API as the engine there is no model to load, and its key is read now so the
+        // first dictation does not wait for the keychain.
+        if settings.data.engineKind == .cloud {
+            ApiKeyStore.shared.load()
+        } else {
+            engine.start(model: settings.data.model)
+        }
 
         hotkeys.hotkeys = settings.data.hotkeys
         hotkeys.handler = { [weak self] event in self?.controller.handle(event) ?? false }
@@ -42,7 +48,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .store(in: &subscriptions)
 
         settings.$data.map(\.model).removeDuplicates().dropFirst()
-            .sink { [weak self] in self?.engine.start(model: $0) }
+            .sink { [weak self] in
+                guard let self, self.settings.data.engineKind == .local else { return }
+                self.engine.start(model: $0)
+            }
+            .store(in: &subscriptions)
+
+        settings.$data.map(\.engineKind).removeDuplicates().dropFirst()
+            .sink { [weak self] kind in
+                guard let self else { return }
+                // The local model holds a few gigabytes; it only stays loaded while it is the engine.
+                if kind == .cloud {
+                    self.engine.stop()
+                } else {
+                    self.engine.start(model: self.settings.data.model)
+                }
+            }
             .store(in: &subscriptions)
 
         settings.$data.map(\.showDockIcon).removeDuplicates().dropFirst()

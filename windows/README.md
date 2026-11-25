@@ -37,6 +37,7 @@ Settings:
 - **Dictation keys**: Right Ctrl, Right Alt, Right Shift, or F13 to F16, in any combination. F13
   to F16 are there for keyboards with macro keys: map a macro key to F13 in the keyboard's own
   software and tick F13 here.
+- **Microphone**: the system's default, or any connected one by name.
 - **Language**: 18 languages, or automatic.
 - **Editing**: *Verbatim*, *Light* (drops um/uh and stutters) or *Smart* (a second pass that
   applies self-corrections, fixes punctuation and formats spoken lists; English only).

@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import dev.sotto.core.CleanupLevel
+import dev.sotto.core.Cloud
 import dev.sotto.core.SpeechEngine
 import java.io.File
 import java.util.concurrent.Executors
@@ -16,7 +17,12 @@ import kotlinx.coroutines.flow.StateFlow
  * come back on the main thread. The model is loaded when the keyboard appears and unloaded
  * after a few idle minutes, because it holds well over a gigabyte of memory.
  */
-class EngineHost(private val context: Context, private val models: ModelStore, private val settings: SettingsStore) {
+class EngineHost(
+    private val context: Context,
+    private val models: ModelStore,
+    private val settings: SettingsStore,
+    private val apiKey: ApiKeyVault,
+) {
     sealed interface State {
         data object Unloaded : State
         data object Loading : State
@@ -47,7 +53,8 @@ class EngineHost(private val context: Context, private val models: ModelStore, p
     /** Starts loading the model if it is not loaded. Safe to call often. */
     fun warm() {
         scheduleUnload()
-        if (!models.isReady) return
+        // With an API as the engine there is nothing to load.
+        if (settings.data.value.useApi || !models.isReady) return
         val wantGpu = settings.data.value.useGpu && !gpuCrashed
         worker.execute {
             if (engine != null && loadedWithGpu == wantGpu) return@execute
@@ -101,6 +108,17 @@ class EngineHost(private val context: Context, private val models: ModelStore, p
 
     /** Recognizes one recording. Both callbacks arrive on the main thread. */
     fun dictate(request: Request, onPartial: (String) -> Unit, onDone: (Result<SpeechEngine.Result>) -> Unit) {
+        val s = settings.data.value
+        if (s.useApi) {
+            worker.execute {
+                val result = runCatching {
+                    Cloud.dictate(s.cloudConfig(apiKey.get()), request.samples, request.count, request.language, request.smart, request.vocabulary)
+                }
+                result.exceptionOrNull()?.let { Log.w(TAG, "dictation through the API failed: ${it.message}") }
+                main.post { onDone(result) }
+            }
+            return
+        }
         main.removeCallbacks(unload)
         warm()
         worker.execute {

@@ -44,6 +44,17 @@ instead: any key that is ticked starts dictation, which lets an external keyboar
 its macro keys, remapped to Right Command) work alongside the built-in one. While fn is in use, set **System
 Settings → Keyboard → Press 🌐 key to → Do Nothing**, otherwise a tap also opens the emoji picker.
 
+**Microphone.** Settings → General → Microphone picks which input Sotto records from, by name;
+"System default" follows macOS. A chosen microphone that is unplugged falls back to the system's
+until it returns.
+
+**An API instead of the local model.** Settings → General → Speech engine → *An OpenAI-compatible
+API* sends each recording to `{API address}/audio/transcriptions` at a service of your choice
+(OpenAI, Groq, a server of your own), and frees the memory the local model held. Fill in the
+address, the key if the service wants one, and the transcription model's name; an optional
+editing model does the Smart pass through `/chat/completions`. The key is kept in the Mac's
+keychain, which Sotto does not touch at all unless the API is selected.
+
 ## Use
 
 | | |
@@ -85,6 +96,7 @@ fn key ──▶ event tap ──▶ TriggerMachine ──▶ AVAudioEngine (16 
 - `Sources/SottoCore` holds the logic with no UI dependencies, covered by `swift test`: the key state machine, the
   speech gate and the text post-processing.
 - `Sources/Sotto` is the menu-bar app: event tap, recorder, engine bridge, paste, pill and settings.
+  `CloudEngine.swift` is the API route; its requests are built and parsed in `SottoCore/CloudAPI.swift`.
 - `engine/server.py` is the sidecar. The app talks to it over stdin/stdout: one JSON line per request followed by
   raw float32 samples, JSON lines back. Its log is `~/Library/Logs/Sotto/engine.log`.
 - Settings and history are JSON files in `~/Library/Application Support/Sotto/`.
@@ -95,7 +107,11 @@ fn key ──▶ event tap ──▶ TriggerMachine ──▶ AVAudioEngine (16 
 swift test
 swift build
 .build/debug/Sotto --transcribe clip.wav [--cleanup smart|light|verbatim] [--language English] [--model ID]
-.build/debug/Sotto --mic-check 3          # runs the live capture path, prints loudness statistics only
+.build/debug/Sotto --mic-check 3 [--microphone NAME]   # runs the live capture path, prints loudness statistics only
+.build/debug/Sotto --list-microphones
+.build/debug/Sotto --transcribe clip.wav --api http://127.0.0.1:47631/v1 --api-model whisper-1   # through an API (key: SOTTO_API_KEY)
+python3 ../testdata/stand_in_api.py 47631   # a stand-in API that checks what it is sent
+.build/debug/Sotto --keychain-check       # stores, reads and removes a throwaway keychain item
 .build/debug/Sotto --snapshot /tmp/shots  # draws the settings tabs and pill states to PNG files
 engine/.venv/bin/python engine/tune_cleanup.py   # cleanup prompt against hard cases (needs engine/.venv)
 ../testdata/make.sh                       # spoken test clips, made with the Mac's own voice

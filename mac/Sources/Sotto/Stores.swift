@@ -6,12 +6,20 @@ final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
 
     @Published var data: SettingsData {
-        didSet { if data != oldValue { save() } }
+        didSet { if data != oldValue, persists { save() } }
     }
 
     private let url = Engine.supportDirectory.appendingPathComponent("settings.json")
+    private let persists: Bool
+
+    /// Settings that exist only in memory, for drawing the interface with made-up values.
+    init(preview data: SettingsData) {
+        self.data = data
+        persists = false
+    }
 
     private init() {
+        persists = true
         if let raw = try? Data(contentsOf: url), let decoded = try? JSONDecoder().decode(SettingsData.self, from: raw) {
             data = decoded
         } else {

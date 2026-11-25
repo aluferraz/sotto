@@ -108,12 +108,21 @@ final class DictationController: ObservableObject {
             show("Microphone access is off — see Settings", isError: true)
             return false
         }
-        guard engine.state.isUsable else {
-            show("Engine is not running — see Settings", isError: true)
-            return false
+        if settings.data.engineKind == .cloud {
+            ApiKeyStore.shared.load()
+            let problem = CloudAPI.problem(settings.data.cloudConfig(apiKey: ApiKeyStore.shared.key))
+            guard problem.isEmpty else {
+                show("The API is not set up — see Settings", isError: true)
+                return false
+            }
+        } else {
+            guard engine.state.isUsable else {
+                show("Engine is not running — see Settings", isError: true)
+                return false
+            }
         }
         do {
-            try recorder.start()
+            try recorder.start(microphoneUID: settings.data.microphoneUID)
         } catch {
             show("Microphone error: \(error)", isError: true)
             return false
@@ -152,21 +161,32 @@ final class DictationController: ObservableObject {
         let app = targetApp
         phase = .processing
 
-        engine.transcribe(
-            samples: samples,
-            language: config.language,
-            cleanup: config.cleanup.rawValue,
-            vocabulary: config.spellingHints
-        ) { [weak self] result in
+        let finish: (Result<Transcript, EngineError>) -> Void = { [weak self] result in
             // A stale generation means the user pressed Escape while this was running.
             guard let self, request == self.generation else { return }
             self.feed(.processingEnded)
             switch result {
             case .failure(let error):
-                self.show(error.description, isError: true)
+                self.show(error.description, isError: true, seconds: 4)
             case .success(let transcript):
                 self.deliver(transcript, config: config, app: app, started: started)
             }
+        }
+        if config.engineKind == .cloud {
+            CloudEngine.transcribe(
+                samples: samples,
+                config: config.cloudConfig(apiKey: ApiKeyStore.shared.key),
+                language: config.language,
+                smart: config.cleanup == .smart,
+                vocabulary: config.spellingHints,
+                completion: finish)
+        } else {
+            engine.transcribe(
+                samples: samples,
+                language: config.language,
+                cleanup: config.cleanup.rawValue,
+                vocabulary: config.spellingHints,
+                completion: finish)
         }
     }
 

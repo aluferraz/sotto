@@ -54,6 +54,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,6 +74,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.sotto.core.CleanupLevel
+import dev.sotto.core.Cloud
 import dev.sotto.core.Replacement
 import dev.sotto.core.Snippet
 import dev.sotto.core.Tone
@@ -142,6 +145,7 @@ private fun SetupTab() {
     val app = context.sotto
     val model by app.models.state.collectAsState()
     val engine by app.engine.state.collectAsState()
+    val settings by app.settings.data.collectAsState()
 
     // The other three steps change outside the app, so look again every second.
     var tick by remember { mutableIntStateOf(0) }
@@ -172,11 +176,21 @@ private fun SetupTab() {
     }
 
     Text(
-        "Speech is turned into text on this phone. After the model is downloaded, nothing you say or type leaves it.",
+        if (settings.useApi) "Speech is turned into text by the API you chose in Settings. Your recordings are sent there."
+        else "Speech is turned into text on this phone. After the model is downloaded, nothing you say or type leaves it.",
         style = MaterialTheme.typography.bodyMedium,
     )
 
-    Step(1, "Download the speech model", done = model is ModelStore.State.Ready) {
+    if (settings.useApi) {
+        val problem = Cloud.problem(settings.cloudConfig(""))
+        Step(1, "Speech engine: your API", done = problem.isEmpty()) {
+            Text(
+                if (problem.isEmpty()) "${settings.apiModel} at ${settings.apiBaseUrl.substringAfter("://").substringBefore('/')}"
+                else "$problem It is on the Settings tab.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    } else Step(1, "Download the speech model", done = model is ModelStore.State.Ready) {
         when (val m = model) {
             is ModelStore.State.Absent -> {
                 Text(
@@ -356,7 +370,54 @@ private fun SettingsTab() {
         Toggle("Keep history", "Password fields are never kept", s.keepHistory) { on -> set { it.copy(keepHistory = on) } }
     }
 
-    Section("Model") {
+    Section("Speech engine") {
+        Toggle(
+            "Use an OpenAI-compatible API",
+            "Sends your recordings to a service you choose, instead of using the model on this phone.",
+            s.useApi,
+        ) { on ->
+            set { it.copy(useApi = on) }
+            if (on) app.engine.unloadNow()
+        }
+        if (s.useApi) {
+            val plain = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false)
+            OutlinedTextField(
+                value = s.apiBaseUrl, onValueChange = { v -> set { it.copy(apiBaseUrl = v) } },
+                label = { Text("API address") }, placeholder = { Text("https://api.openai.com/v1") },
+                singleLine = true, keyboardOptions = plain, modifier = Modifier.fillMaxWidth(),
+            )
+            // Read from the keystore only here, where the API is being set up.
+            var key by remember { mutableStateOf(app.apiKey.get()) }
+            OutlinedTextField(
+                value = key,
+                onValueChange = {
+                    key = it
+                    app.apiKey.set(it)
+                },
+                label = { Text("API key") }, placeholder = { Text("Empty if the server needs none") },
+                singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = s.apiModel, onValueChange = { v -> set { it.copy(apiModel = v) } },
+                label = { Text("Transcription model") }, placeholder = { Text("gpt-4o-mini-transcribe") },
+                singleLine = true, keyboardOptions = plain, modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = s.apiCleanupModel, onValueChange = { v -> set { it.copy(apiCleanupModel = v) } },
+                label = { Text("Editing model (optional)") }, placeholder = { Text("for example gpt-4o-mini") },
+                singleLine = true, keyboardOptions = plain, modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "Sotto adds /audio/transcriptions to the address. The key is stored encrypted with this phone's keystore. " +
+                    "The editing model does the Smart pass; without one, Smart behaves like Light.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+
+    if (!s.useApi) Section("Model") {
         Toggle("Use the GPU", "Much faster on most phones. Turn off if dictation fails.", s.useGpu) { on ->
             set { it.copy(useGpu = on) }
             app.engine.unloadNow()

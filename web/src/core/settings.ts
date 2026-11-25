@@ -53,6 +53,10 @@ export interface Settings {
   copyAutomatically: boolean
   /** Any of these starts dictation. Never empty. */
   hotkeys: HotkeyId[]
+  /** The microphone to record from, as the browser's device id; '' is the system's default. */
+  microphoneId: string
+  /** That microphone's name, to show while it is unplugged. */
+  microphoneLabel: string
   /** Windows app: put the clipboard back after pasting. */
   restoreClipboard: boolean
   /** Windows app: start with Windows. */
@@ -72,6 +76,8 @@ export const DEFAULTS: Settings = {
   unloadAfterMinutes: 15,
   copyAutomatically: false,
   hotkeys: ['ctrlRight'],
+  microphoneId: '',
+  microphoneLabel: '',
   restoreClipboard: true,
   launchAtLogin: false,
 }
@@ -113,6 +119,8 @@ export function normalize(stored: unknown): Settings {
     unloadAfterMinutes: Number.isFinite(minutes) && minutes >= 0 ? Math.round(minutes) : DEFAULTS.unloadAfterMinutes,
     copyAutomatically: flag(s.copyAutomatically, DEFAULTS.copyAutomatically),
     hotkeys: normalizeHotkeys(s.hotkeys),
+    microphoneId: text(s.microphoneId, ''),
+    microphoneLabel: text(s.microphoneLabel, ''),
     restoreClipboard: flag(s.restoreClipboard, DEFAULTS.restoreClipboard),
     launchAtLogin: flag(s.launchAtLogin, DEFAULTS.launchAtLogin),
   }

@@ -45,9 +45,13 @@ export class Engine {
   private idleTimer: ReturnType<typeof setTimeout> | undefined
   private apiKey = ''
 
+  /**
+   * `http` is how requests to an OpenAI-compatible API leave. The Windows app provides one; the
+   * browser version has none and always uses the model on this computer.
+   */
   constructor(
     private readonly settings: Store<Settings>,
-    private readonly http: Cloud.Http,
+    private readonly http?: Cloud.Http,
   ) {
     let last = settings.value.engine
     settings.subscribe((value) => {
@@ -60,6 +64,11 @@ export class Engine {
 
   setApiKey(key: string): void {
     this.apiKey = key
+  }
+
+  /** Whether recordings go to an API instead of the local model. */
+  get usesApi(): boolean {
+    return this.http !== undefined && this.settings.value.engine.kind === 'cloud'
   }
 
   private cloudConfig(): Cloud.CloudConfig {
@@ -99,7 +108,7 @@ export class Engine {
 
   /** Works out where things stand: which engine, whether the GPU can run it, what is on disk. */
   async refresh(): Promise<void> {
-    if (this.settings.value.engine.kind === 'cloud') {
+    if (this.usesApi) {
       this.state.set({ kind: 'cloud', problem: Cloud.problem(this.cloudConfig()) })
       return
     }
@@ -190,11 +199,11 @@ export class Engine {
   async dictate(samples: Float32Array, onPartial: (text: string) => void): Promise<DictationResult> {
     const s = this.settings.value
     const options = { language: s.language, smart: s.cleanup === 'smart', vocabulary: spellingHints(s) }
-    if (s.engine.kind === 'cloud') {
+    if (this.usesApi) {
       const config = this.cloudConfig()
       const problem = Cloud.problem(config)
       if (problem) throw new Error(problem)
-      return Cloud.dictate(this.http, config, samples, options)
+      return Cloud.dictate(this.http!, config, samples, options)
     }
     await this.warm()
     const state = this.state.value

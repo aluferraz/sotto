@@ -46,6 +46,15 @@ public enum Hotkey: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Where speech is turned into text.
+public enum EngineKind: String, Codable, CaseIterable, Identifiable {
+    /// The model on this Mac.
+    case local
+    /// An OpenAI-compatible API chosen by the user.
+    case cloud
+    public var id: String { rawValue }
+}
+
 public enum CleanupLevel: String, Codable, CaseIterable, Identifiable {
     case verbatim, light, smart
     public var id: String { rawValue }
@@ -135,6 +144,15 @@ public struct SettingsData: Codable, Equatable {
     public var restoreClipboard: Bool = true
     public var keepHistory: Bool = true
     public var showDockIcon: Bool = true
+    /// The microphone to record from, as CoreAudio's device identifier. Empty means whatever
+    /// macOS has as its input device.
+    public var microphoneUID: String = ""
+    public var engineKind: EngineKind = .local
+    /// An OpenAI-compatible API's root. Its key is in the keychain, not in this file.
+    public var apiBaseURL: String = "https://api.openai.com/v1"
+    public var apiModel: String = "gpt-4o-mini-transcribe"
+    /// A chat model for the Smart pass through the API; empty to skip that pass.
+    public var apiCleanupModel: String = ""
     public var model: String = SettingsData.model8bit
 
     public static let defaultAppTones: [AppTone] = [
@@ -171,6 +189,11 @@ public struct SettingsData: Codable, Equatable {
         restoreClipboard = (try? c.decode(Bool.self, forKey: .restoreClipboard)) ?? d.restoreClipboard
         keepHistory = (try? c.decode(Bool.self, forKey: .keepHistory)) ?? d.keepHistory
         showDockIcon = (try? c.decode(Bool.self, forKey: .showDockIcon)) ?? d.showDockIcon
+        microphoneUID = (try? c.decode(String.self, forKey: .microphoneUID)) ?? d.microphoneUID
+        engineKind = (try? c.decode(EngineKind.self, forKey: .engineKind)) ?? d.engineKind
+        apiBaseURL = (try? c.decode(String.self, forKey: .apiBaseURL)) ?? d.apiBaseURL
+        apiModel = (try? c.decode(String.self, forKey: .apiModel)) ?? d.apiModel
+        apiCleanupModel = (try? c.decode(String.self, forKey: .apiCleanupModel)) ?? d.apiCleanupModel
         model = (try? c.decode(String.self, forKey: .model)) ?? d.model
     }
 
@@ -202,6 +225,11 @@ public struct SettingsData: Codable, Equatable {
             return defaultTone
         }
         return match.tone
+    }
+
+    /// The API settings together with its key.
+    public func cloudConfig(apiKey: String) -> CloudConfig {
+        CloudConfig(baseURL: apiBaseURL, apiKey: apiKey, model: apiModel, cleanupModel: apiCleanupModel)
     }
 
     /// Terms the cleanup pass should spell exactly: the dictionary plus the

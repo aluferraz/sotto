@@ -81,7 +81,11 @@ private struct SetupTab: View {
                 }
             }
             Section("Engine") {
-                row(done: engineReady, title: "LFM3-Audio on MLX", detail: engineText) { EmptyView() }
+                if store.data.engineKind == .cloud {
+                    row(done: apiProblem.isEmpty, title: "An OpenAI-compatible API", detail: apiProblem.isEmpty ? apiSummary : apiProblem) { EmptyView() }
+                } else {
+                    row(done: engineReady, title: "LFM3-Audio on MLX", detail: engineText) { EmptyView() }
+                }
             }
             if store.data.hotkeys.contains(.fn), let action = globeKeyAction {
                 Section {
@@ -113,6 +117,14 @@ private struct SetupTab: View {
     private var engineReady: Bool {
         if case .ready = engine.state { return true }
         return false
+    }
+
+    private var apiProblem: String {
+        CloudAPI.problem(store.data.cloudConfig(apiKey: ""))
+    }
+
+    private var apiSummary: String {
+        "\(store.data.apiModel) at \(URL(string: store.data.apiBaseURL)?.host ?? store.data.apiBaseURL). Recordings are sent there."
     }
 
     private var engineText: String {
@@ -158,6 +170,11 @@ private struct SetupTab: View {
 
 private struct GeneralTab: View {
     @ObservedObject var store: SettingsStore
+    @ObservedObject private var microphones = Microphones.shared
+    @ObservedObject private var apiKey = ApiKeyStore.shared
+    @State private var apiKeyDraft = ""
+    @State private var apiKeyRefused = false
+    @FocusState private var apiKeyFocused: Bool
     @ObservedObject var engine: Engine
     var restartEngine: () -> Void
 
@@ -176,9 +193,48 @@ private struct GeneralTab: View {
                         }
                     }
                 }
+                Picker("Microphone", selection: $store.data.microphoneUID) {
+                    Text("System default").tag("")
+                    ForEach(microphones.all) { Text($0.name).tag($0.uid) }
+                    // A saved choice that is unplugged stays selected, and says what happens meanwhile.
+                    if !store.data.microphoneUID.isEmpty,
+                       !microphones.all.contains(where: { $0.uid == store.data.microphoneUID }) {
+                        Text("Not connected (using the system default)").tag(store.data.microphoneUID)
+                    }
+                }
                 Picker("Language", selection: $store.data.language) {
                     ForEach(SettingsData.languages, id: \.self) { Text($0.isEmpty ? "Detect automatically" : $0).tag($0) }
                 }
+            }
+            Section {
+                Picker("Speech engine", selection: $store.data.engineKind) {
+                    Text("On this Mac").tag(EngineKind.local)
+                    Text("An OpenAI-compatible API").tag(EngineKind.cloud)
+                }
+                if store.data.engineKind == .cloud {
+                    TextField("API address", text: $store.data.apiBaseURL, prompt: Text("https://api.openai.com/v1"))
+                    SecureField("API key", text: $apiKeyDraft, prompt: Text("Leave empty if the server needs none"))
+                        .focused($apiKeyFocused)
+                        .onSubmit(saveApiKey)
+                        .onChange(of: apiKeyFocused) { _, focused in if !focused { saveApiKey() } }
+                    TextField("Transcription model", text: $store.data.apiModel, prompt: Text("gpt-4o-mini-transcribe"))
+                    TextField("Editing model", text: $store.data.apiCleanupModel, prompt: Text("Optional, for example gpt-4o-mini"))
+                }
+            } header: {
+                Text("Speech engine")
+            } footer: {
+                if store.data.engineKind == .cloud {
+                    Text(apiKeyRefused
+                         ? "The keychain refused to store the key."
+                         : "Your recordings are sent to this address (Sotto adds /audio/transcriptions). The key is kept in your Mac's keychain. The editing model does the Smart pass; without one, Smart behaves like Light.")
+                        .foregroundStyle(apiKeyRefused ? .red : .secondary)
+                }
+            }
+            .onChange(of: store.data.engineKind, initial: true) { _, kind in
+                // The keychain is only read once the API is actually being set up or used.
+                guard kind == .cloud else { return }
+                apiKey.load()
+                apiKeyDraft = apiKey.key
             }
             Section("Cleanup") {
                 Picker("Editing", selection: $store.data.cleanup) {
@@ -193,6 +249,7 @@ private struct GeneralTab: View {
                 Toggle("Put my clipboard back after pasting", isOn: $store.data.restoreClipboard)
                 Toggle("Show Sotto in the Dock", isOn: $store.data.showDockIcon)
             }
+            if store.data.engineKind == .local {
             Section("Model") {
                 Picker("Checkpoint", selection: $store.data.model) {
                     Text("LFM3-Audio 2B · 8-bit (recommended, 2.3 GB)").tag(SettingsData.model8bit)
@@ -204,8 +261,15 @@ private struct GeneralTab: View {
                     Button("Restart Engine", action: restartEngine)
                 }
             }
+            }
         }
         .formStyle(.grouped)
+        .onDisappear(perform: saveApiKey)
+    }
+
+    private func saveApiKey() {
+        guard store.data.engineKind == .cloud else { return }
+        apiKeyRefused = !apiKey.save(apiKeyDraft)
     }
 
     private var status: String {

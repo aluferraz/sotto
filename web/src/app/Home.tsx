@@ -100,7 +100,7 @@ export function Home({ app }: { app: App }) {
           <button class="button" onClick={copy} disabled={!pad}><Copy /> {copied ? 'Copied' : 'Copy'}</button>
           <button class="button quiet" onClick={() => app.pad.set('')} disabled={!pad}>Clear</button>
           <span class="spacer" />
-          <span class="small">{settings.engine.kind === 'local' ? 'Audio stays on this computer.' : 'Audio is sent to your API.'}</span>
+          <span class="small">{app.engine.usesApi ? 'Audio is sent to your API.' : 'Audio stays on this computer.'}</span>
         </div>
       </section>
     </>
@@ -137,8 +137,10 @@ function EngineRow({ app, state }: { app: App; state: EngineState }) {
     }
     case 'unsupported':
       return <Row status="warn" title="Speech engine" problem
-        detail={`${state.reason} The on-device model needs WebGPU (a recent Chrome or Edge). You can use an OpenAI-compatible API instead.`}>
-        <button class="button" onClick={() => app.tab.set('settings')}>Open Settings</button>
+        detail={desktop
+          ? `${state.reason} You can use an OpenAI-compatible API instead.`
+          : `${state.reason} Sotto needs WebGPU: try a recent Chrome or Edge on a computer with a graphics card from the last several years.`}>
+        {desktop && <button class="button" onClick={() => app.tab.set('settings')}>Open Settings</button>}
       </Row>
     case 'absent':
       return <Row status="todo" title="Speech engine: LFM3-Audio on this computer"

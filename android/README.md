@@ -39,7 +39,14 @@ practice, 8 GB of memory or more: the loaded model holds 1 to 3 GB.
 
 Settings in the app: language (18, or automatic), editing level (Verbatim, Light, Smart), tone
 (Formal, Casual, Very casual, with Casual applied in chat apps), GPU on or off, how long the
-model stays in memory, and the dictionary, replacements and snippets. History stays on the
+model stays in memory, and the dictionary, replacements and snippets.
+
+**An API instead of the phone's own model.** Settings → Speech engine → *Use an OpenAI-compatible
+API* sends each recording to `{API address}/audio/transcriptions` at a service of your choice,
+and needs no model download. Enter the address, the key if the service wants one, and the
+transcription model's name; an optional editing model does the Smart pass. The key is stored
+encrypted with a key in the Android Keystore, which is only created once you save one. Plain
+`http://` addresses are allowed, for a server on your own network. History stays on the
 phone, and password fields are never recorded in it.
 
 ## How it is built
@@ -75,7 +82,7 @@ Things worth knowing:
 ## Testing
 
 ```sh
-./gradlew :core:test                      # 30 unit tests
+./gradlew :core:test                      # 36 unit tests
 
 # The engine code on this computer (needs the model file; Gradle fetches a JDK 25 for it):
 ./gradlew :bench:installDist
@@ -96,6 +103,16 @@ adb shell am broadcast -a dev.sotto.keyboard.DEBUG_DICTATE --es path clip.wav
 With the keyboard open, the result is typed into the focused field; otherwise it is logged
 under the tag `Sotto`.
 
+The API route can be tested the same way against `../testdata/stand_in_api.py` running on the
+computer (an emulator reaches it at `10.0.2.2`):
+
+```sh
+python3 ../testdata/stand_in_api.py 47631
+adb shell am broadcast -a dev.sotto.keyboard.DEBUG_API --es url http://10.0.2.2:47631/v1 --es model whisper-1 --es key test
+adb shell am broadcast -a dev.sotto.keyboard.DEBUG_DICTATE --es path clip.wav
+adb shell am broadcast -a dev.sotto.keyboard.DEBUG_API --ez off true      # back to the phone's own model
+```
+
 ## What it has run on
 
 - Emulators with Android 14 and 16, on the CPU: setup, download with pause and resume, dictation
@@ -104,6 +121,8 @@ under the tag `Sotto`.
 - A Galaxy S25 Ultra with Android 17, on the GPU. The first load took 91 s while the model was
   compiled for the GPU; the first clip (9 s of speech) took 4.8 s to recognize and 6.2 s to clean.
   Later loads and clips were not timed.
+- The API route and the encrypted key, on an Android 14 emulator against the stand-in server:
+  upload accepted, key sent, key still readable after the app was restarted.
 - Not tried: Android 10 to 13, and TalkBack (the keyboard's keys have no spoken labels yet).
 
 ## Licence of the model

@@ -6,7 +6,8 @@ import type { DictationResult } from './lfm'
 /**
  * Dictation through any service that speaks the OpenAI API: `POST {base}/audio/transcriptions`
  * for the speech, and optionally `POST {base}/chat/completions` for the Smart editing pass. For
- * people who would rather use a hosted model, or whose computer cannot run the local one.
+ * people who would rather use a hosted model, or whose computer cannot run the local one. Only
+ * the Windows app offers it; the browser version always runs the model itself.
  */
 export interface CloudConfig {
   baseUrl: string
@@ -26,26 +27,8 @@ export interface HttpRequest {
   form?: FormPart[]
 }
 
-/** How requests leave: `fetch` in a browser, the main process in the Windows app (no CORS there). */
+/** How requests leave: through the Windows app's main process, which is not bound by a page's cross-origin rules. */
 export type Http = (request: HttpRequest) => Promise<{ status: number; body: string }>
-
-export const browserHttp: Http = async (request) => {
-  let body: BodyInit
-  const headers = { ...request.headers }
-  if (request.form) {
-    const form = new FormData()
-    for (const part of request.form) {
-      if ('value' in part) form.append(part.name, part.value)
-      else form.append(part.name, new Blob([part.bytes as BlobPart], { type: part.type }), part.filename)
-    }
-    body = form
-  } else {
-    body = JSON.stringify(request.json)
-    headers['Content-Type'] = 'application/json'
-  }
-  const response = await fetch(request.url, { method: 'POST', headers, body })
-  return { status: response.status, body: await response.text() }
-}
 
 const endpoint = (config: CloudConfig, path: string) => config.baseUrl.trim().replace(/\/+$/, '') + path
 

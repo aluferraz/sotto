@@ -16,24 +16,21 @@ it in a window and adds a system-wide key and pasting into other apps.
   catch up. The graphics card must support 16-bit floats in shaders (`shader-f16`), which
   integrated and discrete cards of the last several years do.
 - About 2 GB of free disk space and 2 GB of graphics memory.
-- No such graphics card? Settings → Speech engine → **An OpenAI-compatible API** sends the
-  recording to a service of your choice instead. Called from a browser, that service has to
-  allow cross-origin requests (OpenAI's does; a server of your own may need the option turned on).
+
+The browser version only runs the model itself. The option to use an OpenAI-compatible API
+instead belongs to the [Windows](../windows), [Mac](../mac) and [Android](../android) apps.
 
 ## How it works
 
 ```
 microphone ─▶ AudioWorklet (16 kHz mono) ─▶ speech gate: silence never reaches the model
-                                                  │
-                    ┌─────────────────────────────┴───────────────────────────┐
-                    ▼ on this computer                                        ▼ your API
-   engine worker (src/engine)                               POST {base}/audio/transcriptions
-     log-mel features (mel.ts)                               POST {base}/chat/completions (optional)
-     audio encoder  ─┐  ONNX Runtime Web
-     language model ─┘  on WebGPU (lfm.ts)
-       1. "Perform ASR in English."   audio ─▶ transcript
-       2. few-shot cleanup prompt     transcript ─▶ clean text
-                    └─────────────────────────────┬───────────────────────────┘
+                                                  ▼
+                              engine worker (src/engine)
+                                log-mel features (mel.ts)
+                                audio encoder  ─┐  ONNX Runtime Web
+                                language model ─┘  on WebGPU (lfm.ts)
+                                  1. "Perform ASR in English."   audio ─▶ transcript
+                                  2. few-shot cleanup prompt     transcript ─▶ clean text
                                                   ▼
                  guard: an answer that grew, lost a question mark or gained words is discarded
                                                   ▼
@@ -43,7 +40,7 @@ microphone ─▶ AudioWorklet (16 kHz mono) ─▶ speech gate: silence never r
 | Folder | What is in it |
 |---|---|
 | `src/core` | Pure logic, shared rule for rule with the Mac and Android apps: text post-processing, the speech gate, the cleanup prompt and its guard, the key state machine, settings. |
-| `src/engine` | The model: feature extraction, the two ONNX graphs with their caches kept on the GPU, the download into the browser's file system with checksums, the worker they live in, and the OpenAI-compatible client. |
+| `src/engine` | The model: feature extraction, the two ONNX graphs with their caches kept on the GPU, the download into the browser's file system with checksums, the worker they live in, and the OpenAI-compatible client that the Windows app uses. |
 | `src/app` | The interface (Preact): dictation flow, recorder, the four screens, and the bridge the Windows app plugs into. |
 
 Things worth knowing:
@@ -78,7 +75,7 @@ a hidden Chromium window (Electron, installed in `../windows`):
 E=../windows/node_modules/.bin/electron
 $E test/run-engine.cjs MODEL_DIR clip.wav            # transcribe and clean clips, print timings
 $E test/run-engine.cjs MODEL_DIR --cleanup           # the cleanup pass over hard cases
-$E test/run-app.cjs --e2e MODEL_DIR clip.wav         # the whole page: download, load, speak through a fake microphone
+$E test/run-app.cjs --e2e MODEL_DIR clip.wav         # the whole page: download, load, speak through a fake microphone, pick microphones
 $E test/run-app.cjs --shots DIR                      # screenshots of every screen
 ```
 

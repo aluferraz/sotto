@@ -4,7 +4,7 @@ import { Store } from './store'
 
 const SETTINGS = 'sotto.settings'
 const HISTORY = 'sotto.history'
-const API_KEY = 'sotto.apiKey'
+const API_KEY = 'apiKey'
 const MAX_HISTORY = 200
 
 export interface HistoryEntry {
@@ -43,16 +43,13 @@ export function addToHistory(history: Store<HistoryEntry[]>, entry: HistoryEntry
 }
 
 /**
- * The API key. The Windows app keeps it encrypted with the user's Windows account; a browser
- * has nothing better than its own storage for this site.
+ * The API key, which only the Windows app has: it keeps it encrypted with the user's Windows
+ * account, and reads it only when the API is the selected engine or is being set up.
  */
 export async function loadApiKey(): Promise<string> {
-  if (desktop) return desktop.getSecret('apiKey')
-  return localStorage.getItem(API_KEY) ?? ''
+  return desktop ? desktop.getSecret(API_KEY) : ''
 }
 
 export async function saveApiKey(value: string): Promise<void> {
-  if (desktop) return desktop.setSecret('apiKey', value)
-  if (value) localStorage.setItem(API_KEY, value)
-  else localStorage.removeItem(API_KEY)
+  await desktop?.setSecret(API_KEY, value)
 }

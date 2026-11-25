@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SottoCore
 
 /// `Sotto --snapshot DIR` draws the settings tabs and the pill states into PNG files.
 /// The app renders its own views, so no screen-recording permission is involved.
@@ -25,6 +26,14 @@ enum Snapshot {
             let view = SettingsView(store: settings, engine: engine, history: history, navigation: navigation, restartEngine: {})
             write(view, size: NSSize(width: 620, height: 600), titled: true, to: out.appendingPathComponent("settings-\(name).png"))
         }
+
+        // The API settings, with made-up values that are never saved.
+        var api = SettingsData()
+        api.engineKind = .cloud
+        api.apiCleanupModel = "gpt-4o-mini"
+        navigation.tab = .general
+        write(SettingsView(store: SettingsStore(preview: api), engine: engine, history: history, navigation: navigation, restartEngine: {}),
+              size: NSSize(width: 620, height: 1040), titled: true, to: out.appendingPathComponent("settings-api.png"))
 
         let controller = DictationController(settings: settings, engine: engine, history: history)
         var wave: [Float] = []

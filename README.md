@@ -31,10 +31,10 @@ Those are real outputs from the test runs, not wishful thinking.
 
 | | Where it types | The model runs on | Get it |
 |---|---|---|---|
-| 🍎 **[Mac](mac)** | Any app, at the cursor | Apple Silicon GPU (MLX on Metal) | [Build it](#mac) in two commands |
+| 🍎 **[Mac](mac)** | Any app, at the cursor | Apple Silicon GPU (MLX on Metal), or an API | [Build it](#mac) in two commands |
 | 🪟 **[Windows](windows)** | Any app, at the cursor | Your graphics card (WebGPU), or an API | [Download the installer](https://github.com/aluferraz/sotto/releases/latest) |
-| 🤖 **[Android](android)** | Any app: it is a keyboard | The phone's GPU or CPU (LiteRT-LM) | [Download the APK](https://github.com/aluferraz/sotto/releases/latest) |
-| 🌐 **[Browser](web)** | A dictation pad on the page | Your graphics card (WebGPU), or an API | [Open it](https://aluferraz.github.io/sotto/) |
+| 🤖 **[Android](android)** | Any app: it is a keyboard | The phone's GPU or CPU (LiteRT-LM), or an API | [Download the APK](https://github.com/aluferraz/sotto/releases/latest) |
+| 🌐 **[Browser](web)** | A dictation pad on the page | Your graphics card (WebGPU) | [Open it](https://aluferraz.github.io/sotto/) |
 
 All four share the same habits:
 
@@ -46,6 +46,8 @@ All four share the same habits:
 - **A dictionary.** Names it should spell your way, replacements for words it keeps getting
   wrong, and spoken snippets ("my address" → the whole address).
 - **Tone.** Formal, casual or very casual: capitals and final periods, to taste.
+- **Your microphone of choice.** On Mac, Windows and in the browser, pick which one Sotto
+  listens to, whatever the system's default is.
 - **It knows silence.** A recording with no speech in it is dropped before the model can invent
   a sentence for it.
 - **Yours.** Settings and history are files on your device. The one thing it downloads is the model.
@@ -76,7 +78,7 @@ More, including other keys and keeping the permissions across rebuilds: [mac/REA
 3. Click into any text field, hold **Right Ctrl**, and talk.
 
 No capable graphics card? Settings → Speech engine → **An OpenAI-compatible API**, and Sotto
-uses that instead. Details, keys and limits: [windows/README.md](windows/README.md).
+uses that instead ([more below](#rather-use-a-cloud-model)). Details, keys and limits: [windows/README.md](windows/README.md).
 
 <p><img src="docs/windows-home.png" width="620" alt="The Windows app" /></p>
 
@@ -99,15 +101,21 @@ allow the microphone, and hold **Right Ctrl** (or tap the big purple button). Th
 in the browser's storage for that site. More: [web/README.md](web/README.md).
 
 <p><img src="docs/web-dictate.png" width="400" alt="The browser version" /> <img src="docs/web-dictionary.png" width="400" alt="The dictionary: terms, replacements and snippets" /></p>
+<p><img src="docs/web-settings.png" width="400" alt="Settings in the browser version" /></p>
 
 ## Rather use a cloud model?
 
-The Windows app and the browser version can send recordings to any **OpenAI-compatible API**
-instead of running the model themselves: OpenAI, Groq, or a server of your own. Enter the API's
-address, a key if it wants one, and the model's name. An optional chat model does the Smart
-editing pass. The Mac and Android apps are on-device only.
+The Mac, Windows and Android apps can send recordings to any **OpenAI-compatible API** instead
+of running the model themselves: OpenAI, Groq, or a server of your own. In Settings, under
+Speech engine, enter the API's address, a key if it wants one, and the model's name. An optional
+chat model does the Smart editing pass, with the same guard: if it answers your sentence
+instead of tidying it, Sotto types what you said.
 
-<p><img src="docs/web-api.png" width="520" alt="Settings for an OpenAI-compatible API" /></p>
+The key goes into the system's own secure storage (the Mac's keychain, Windows' account
+encryption, the Android Keystore), and that storage is not touched at all unless you choose the
+API. The browser version has no API option; it always runs the model itself.
+
+<p><img src="docs/mac-api.png" width="430" alt="API settings in the Mac app" /> <img src="docs/android-api.png" width="250" alt="API settings in the Android app" /></p>
 
 ## How it works
 
@@ -150,6 +158,8 @@ What has been tried, and what has not:
 
 - **Mac**: built, tested and used on an M3 Max.
 - **Android**: on emulators (Android 14 and 16) and on one phone (Galaxy S25 Ultra, Android 17, on its GPU).
+- **The API route**: against a stand-in server that checks the upload (`testdata/stand_in_api.py`),
+  on the Mac, on an Android emulator and on Windows. Not against a paid service.
 - **Browser**: the whole page, from download to typed text, in Chromium on Apple graphics.
 - **Windows**: the app is built and self-tested on a Windows machine on every push: the key,
   the microphone, the paste into another field, the API route, the model download and its
@@ -165,7 +175,7 @@ What has been tried, and what has not:
 | [`android/`](android) | The Android keyboard (Kotlin): `app`, the shared `core`, and a desktop `bench`. |
 | [`web/`](web) | The browser version (TypeScript): interface and WebGPU engine. |
 | [`windows/`](windows) | The Windows app: an Electron shell around `web/`. |
-| [`testdata/`](testdata) | A script that makes spoken test clips; the clips themselves are not kept here. |
+| [`testdata/`](testdata) | A script that makes spoken test clips (the clips themselves are not kept here), and a stand-in API server for testing the API route without an account. |
 
 The text rules (fillers, tone, snippets, the guard, the key's state machine) exist three times,
 in Swift, Kotlin and TypeScript, with the same tests in each.

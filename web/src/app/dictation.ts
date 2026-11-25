@@ -112,7 +112,7 @@ export class Dictation {
     this.partial.set('')
     this.phase.set('recording')
     void this.engine.warm()
-    this.recorder.start().then(
+    this.recorder.start(this.settings.value.microphoneId).then(
       () => this.beep(660),
       (error) => {
         this.machine.reset()
